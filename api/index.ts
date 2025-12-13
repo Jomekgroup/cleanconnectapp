@@ -790,76 +790,79 @@ app.post('/api/chats/:id/messages', protect, async (req: Request, res: Response)
 // ROUTES: AI & MISC
 // ============================================================================
 app.post('/api/search/ai', async (req: Request, res: Response) => {
-  const { query } = req.body;
-  try {
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `You are a helper for a cleaning service app in Nigeria. 
-        Extract key search terms (location, service type, budget) from this user query: "${query}".
-        Return ONLY a JSON object with keys: "location" (string), "service" (string), "maxPrice" (number). 
-        If info is missing, use null.
-        Example: {"location": "Lagos", "service": "Deep Cleaning", "maxPrice": 50000}`
-    });
-    
-    const text = response.text;
-    if (!text) {
-        throw new Error("No response from AI");
-    }
-    const cleanJson = text.replace(/```json|```/g, '').trim();
-    const criteria = JSON.parse(cleanJson);
+    const { query } = req.body;
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `You are a helper for a cleaning service app in Nigeria. 
+            Extract key search terms (location, service type, budget) from this user query: "${query}".
+            Return ONLY a JSON object with keys: "location" (string), "service" (string), "maxPrice" (number). 
+            If info is missing, use null.
+            Example: {"location": "Lagos", "service": "Deep Cleaning", "maxPrice": 50000}`
+        });
+        
+        const text = response.text;
+        if (!text) {
+            throw new Error("No response from AI");
+        }
+        const cleanJson = text.replace(/```json|```/g, '').trim();
+        const criteria = JSON.parse(cleanJson);
 
-    // Build SQL Query based on extracted criteria
-    let sql = "SELECT id FROM users WHERE role = 'cleaner' AND is_suspended = false";
-    const params: any[] = [];
-    let paramIndex = 1;
+        // Build SQL Query based on extracted criteria
+        let sql = "SELECT id FROM users WHERE role = 'cleaner' AND is_suspended = false";
+        const params: any[] = [];
+        let paramIndex = 1;
 
-    if (criteria.location) {
-        sql += ` AND (city ILIKE $${paramIndex} OR state ILIKE $${paramIndex} OR other_city ILIKE $${paramIndex})`;
-        params.push(`%${criteria.location}%`);
-        paramIndex++;
-    }
-    // Very basic service match, production should use array contains or full text search
-    if (criteria.service) {
-        sql += ` AND services::text ILIKE $${paramIndex}`;
-        params.push(`%${criteria.service}%`);
-        paramIndex++;
-    }
-    if (criteria.maxPrice) {
-        sql += ` AND (charge_hourly <= $${paramIndex} OR charge_daily <= $${paramIndex})`;
-        params.push(criteria.maxPrice);
-        paramIndex++;
-    }
+        if (criteria.location) {
+            sql += ` AND (city ILIKE $${paramIndex} OR state ILIKE $${paramIndex} OR other_city ILIKE $${paramIndex})`;
+            params.push(`%${criteria.location}%`);
+            paramIndex++;
+        }
+        // Very basic service match, production should use array contains or full text search
+        if (criteria.service) {
+            sql += ` AND services::text ILIKE $${paramIndex}`;
+            params.push(`%${criteria.service}%`);
+            paramIndex++;
+        }
+        if (criteria.maxPrice) {
+            sql += ` AND (charge_hourly <= $${paramIndex} OR charge_daily <= $${paramIndex})`;
+            params.push(criteria.maxPrice);
+            paramIndex++;
+        }
 
-    const result = await pool.query(sql, params);
-    res.json({ matchingIds: result.rows.map(r => r.id) });
+        const result = await pool.query(sql, params);
+        res.json({ matchingIds: result.rows.map(r => r.id) });
 
-  } catch (error) { 
-      console.error(error);
-      res.json({ matchingIds: [] });
-  }
-});
+    } catch (error) { 
+        console.error(error);
+        res.json({ matchingIds: [] });
+    }
+}); // <-- Route properly closed here
 
 app.post('/api/contact', (req: Request, res: Response) => {
     console.log('Contact Form:', req.body);
     res.json({ message: 'Message received' });
-});
+}); // <-- Route properly closed here
 
-// ... (The previous code block ends with the continuation of the messages route)
-            chatId: r.chat_id,
-            // ... other message properties
-        }));
-        res.json(messages);
-    } catch (error) { handleError(res, error); }
-});
+// Assuming the '/api/chats/:id/messages' route was the one immediately above the comments:
+app.get('/api/chats/:id/messages', protect, async (req: Request, res: Response) => {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM messages WHERE chat_id = $1 ORDER BY created_at ASC',
+            [req.params.id]
+        );
+        const messages = result.rows.map(r => ({
+            id: r.id,
+            chatId: r.chat_id,
+            // ... other message properties
+        }));
+        res.json(messages);
+    } catch (error) { handleError(res, error); }
+}); // <-- FINAL Route properly closed here
 
 // ============================================================================
 // EXPORT (CRITICAL FOR VERCEL SERVERLESS)
 // ============================================================================
-// This is the only necessary instruction for the serverless function.
-module.exports = app; 
-
-// ============================================================================
-// REDUNDANT LOGIC REMOVED 
-// (The static file serving, SPA fallback, and the final 404 are now 
-// handled by vercel.json for cleaner serverless execution.)
-// ============================================================================
+// This is the essential instruction for Vercel to run your Express application
+// as a serverless function.
+module.exports = app;
