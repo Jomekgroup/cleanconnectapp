@@ -845,34 +845,34 @@ app.post('/api/contact', (req: Request, res: Response) => {
 });
 
 // ============================================================================
-// SERVER START
+// EXPORT (CRITICAL FOR VERCEL SERVERLESS)
+// ============================================================================
+// This is the essential line that exposes the Express 'app' instance
+// to the Vercel Node runtime environment for handling API requests.
+module.exports = app; 
+
+// ============================================================================
+// STATIC FILE SERVING / SPA ROUTING (Production only)
 // ============================================================================
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  
-  if (!process.env.DATABASE_URL) {
-      console.warn("WARNING: DATABASE_URL is not set. Database features will fail.");
-  }
-  if (!process.env.API_KEY) {
-      console.warn("WARNING: API_KEY is not set. AI features will fail.");
-  }
-});
-
-// Serve static files in production
-// Place this AFTER API routes so API requests aren't intercepted by the static handler
+// Serve static files in production (required to load your frontend assets)
+// The check `if (process.env.NODE_ENV === 'production')` ensures this is only used
+// on Vercel, not in a local dev environment if you ever choose to run it locally.
 if (process.env.NODE_ENV === 'production') {
-  // Assuming the build output is in the 'dist' folder at the root level relative to where this script runs
-  // If backend/index.ts is run via ts-node, __dirname is .../backend. ../dist is .../dist.
-  // If compiled to dist/backend/index.js, adjusting path might be needed. 
-  // Standard monorepo or simple deployment usually puts `dist` (frontend) and `backend` as siblings.
-  app.use(express.static(path.join(__dirname_local, '../dist')));
+  // Serves assets from the frontend build folder (e.g., /dist)
+  app.use(express.static(path.join(__dirname_local, '../dist')));
 
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname_local, '../dist/index.html'));
-  });
+  // SPA Fallback: Handles all non-API and non-static file requests by serving index.html
+  // This ensures routing like /dashboard or /about works for your frontend.
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname_local, '../dist/index.html'));
+  });
 }
 
+// Global 404 Handler (Runs if no route/static file matched)
 app.use((req, res, next) => {
-    res.status(404).json({ message: `Not Found - ${req.originalUrl}` });
+    res.status(404).json({ message: `Not Found - ${req.originalUrl}` });
 });
+
+// NOTE: The entire app.listen() block has been removed as it is incompatible 
+// with Vercel's serverless function environment.
