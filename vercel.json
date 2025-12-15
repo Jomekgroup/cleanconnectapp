@@ -20,9 +20,9 @@
     }
   ],
   "env": {
-    "DATABASE_URL": "@database_url",
-    "JWT_SECRET": "@jwt_secret",
-    "API_KEY": "@google_genai_api_key",
+    "DATABASE_URL": "postgresql://cleanconnect_db_cj0i_user:foozWKlUIQfIIz5dhAK6hXCG2c9KPESO@dpg-d4fc7m6uk2gs73f8k1dg-a.oregon-postgres.render.com/cleanconnect_db_cj0i?sslmode=require",
+    "JWT_SECRET": "dev_secret_key_123",
+    "API_KEY": "",
     "NODE_ENV": "production"
   }
 }
