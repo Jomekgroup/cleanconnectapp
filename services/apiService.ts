@@ -5,33 +5,28 @@ import { User, Cleaner, Booking, AdminRole, Chat, Message, SupportTicket, Review
 // CONFIGURATION
 // ==========================================
 const getApiUrl = () => {
-    try {
-        const env = (import.meta as any).env;
-        if (env) {
-            // FIX: Always prioritize the VITE_API_URL if it is set.
-            // This ensures Vercel points to Render.
-            if (env.VITE_API_URL) {
-                return env.VITE_API_URL.endsWith('/api') 
-                    ? env.VITE_API_URL 
-                    : `${env.VITE_API_URL}/api`;
-            }
-            
-            // Fallback for local development
-            return 'http://localhost:5000/api';
-        }
-    } catch (e) {
-        console.error("Error detecting API URL:", e);
+    // 1. Get the URL from environment variables
+    const viteApiUrl = import.meta.env.VITE_API_URL;
+
+    if (viteApiUrl) {
+        // Remove any trailing slash the user might have added
+        const base = viteApiUrl.endsWith('/') ? viteApiUrl.slice(0, -1) : viteApiUrl;
+        
+        // Ensure it ends with /api if it doesn't already
+        return base.endsWith('/api') ? base : `${base}/api`;
     }
+
+    // 2. Fallback for local development
     return 'http://localhost:5000/api';
 };
 
-const API_URL = getApiUrl();
-
+// Fixed: Only one declaration of API_URL
 const API_URL = getApiUrl();
 
 // ==========================================
 // API HELPERS
 // ==========================================
+// ... (Rest of your helper functions remain the same)
 
 const getHeaders = () => {
     const token = localStorage.getItem('cleanconnect_token');
