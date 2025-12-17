@@ -4,22 +4,28 @@ import { User, Cleaner, Booking, AdminRole, Chat, Message, SupportTicket, Review
 // ==========================================
 // CONFIGURATION
 // ==========================================
-// Safely determine API URL. 
 const getApiUrl = () => {
     try {
         const env = (import.meta as any).env;
         if (env) {
-            // In production, use relative path. In dev, use env var or localhost.
-            return env.PROD 
-                ? '/api' 
-                : (env.VITE_API_URL || 'http://localhost:5000/api');
+            // FIX: Always prioritize the VITE_API_URL if it is set.
+            // This ensures Vercel points to Render.
+            if (env.VITE_API_URL) {
+                return env.VITE_API_URL.endsWith('/api') 
+                    ? env.VITE_API_URL 
+                    : `${env.VITE_API_URL}/api`;
+            }
+            
+            // Fallback for local development
+            return 'http://localhost:5000/api';
         }
     } catch (e) {
-        // Ignore errors if import.meta is not supported
+        console.error("Error detecting API URL:", e);
     }
-    // Default fallback
     return 'http://localhost:5000/api';
 };
+
+const API_URL = getApiUrl();
 
 const API_URL = getApiUrl();
 
