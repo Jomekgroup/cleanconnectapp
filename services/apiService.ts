@@ -1,23 +1,40 @@
+
 import { User, Cleaner, Booking, AdminRole, Chat, Message, SupportTicket, Review } from '../types';
 
 // ==========================================
 // CONFIGURATION
 // ==========================================
+// Safely determine API URL. 
 const getApiUrl = () => {
-    const viteApiUrl = import.meta.env.VITE_API_URL;
-    if (viteApiUrl) {
-        const base = viteApiUrl.endsWith('/') ? viteApiUrl.slice(0, -1) : viteApiUrl;
-        return base.endsWith('/api') ? base : `${base}/api`;
+    try {
+        const env = (import.meta as any).env;
+        if (env) {
+            // In production, use relative path. In dev, use env var or localhost.
+            return env.PROD 
+                ? '/api' 
+                : (env.VITE_API_URL || 'http://localhost:5000/api');
+        }
+    } catch (e) {
+        // Ignore errors if import.meta is not supported
     }
+    // Default fallback
     return 'http://localhost:5000/api';
 };
 
 const API_URL = getApiUrl();
 
+// ==========================================
+// API HELPERS
+// ==========================================
+
 const getHeaders = () => {
     const token = localStorage.getItem('cleanconnect_token');
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
     return headers;
 };
 
@@ -49,7 +66,9 @@ const fileToBase64 = async (file: File): Promise<string> => {
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
                     resolve(dataUrl);
-                } else reject(new Error("Failed to get canvas context"));
+                } else {
+                    reject(new Error("Failed to get canvas context"));
+                }
             };
             img.onerror = (err) => reject(err);
         };
@@ -60,42 +79,21 @@ const fileToBase64 = async (file: File): Promise<string> => {
 // ==========================================
 // API SERVICE
 // ==========================================
+
 export const apiService = {
-    // ---------------------------
-    // AUTH
-    // ---------------------------
     login: async (email: string, password?: string): Promise<{ token: string; user: User }> => {
         const response = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
         });
-        const data = await handleResponse(response);
-        localStorage.setItem('cleanconnect_token', data.token);
-        return data;
+        return handleResponse(response);
     },
 
     socialLogin: async (provider: 'google' | 'apple', email?: string, name?: string): Promise<{ token: string; user: User }> => {
-        const response = await fetch(`${API_URL}/auth/social-login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ provider, email, name }),
-        });
-        const data = await handleResponse(response);
-        localStorage.setItem('cleanconnect_token', data.token);
-        return data;
-    },
-
-    getSocialUser: async (provider: 'google' | 'apple'): Promise<{ email: string; fullName: string }> => {
-        try {
-            const response = await fetch(`${API_URL}/auth/social-user?provider=${provider}`, {
-                method: 'GET',
-                headers: getHeaders(),
-            });
-            return handleResponse(response);
-        } catch (err) {
-            throw new Error('Failed to fetch social account info.');
-        }
+        // Since mock data is removed, and real backend OAuth isn't implemented in the provided backend code,
+        // we throw an error here to indicate this feature requires backend integration.
+        throw new Error("Social login requires backend configuration.");
     },
 
     logout: async () => {
@@ -103,48 +101,41 @@ export const apiService = {
     },
 
     register: async (userData: Partial<User>): Promise<User> => {
-        const payload = { ...userData };
-        if (payload.profilePhoto instanceof File) payload.profilePhoto = await fileToBase64(payload.profilePhoto) as any;
-        if (payload.governmentId instanceof File) payload.governmentId = await fileToBase64(payload.governmentId) as any;
-        if (payload.businessRegDoc instanceof File) payload.businessRegDoc = await fileToBase64(payload.businessRegDoc) as any;
+         const payload = { ...userData };
+         // Ensure files are base64 encoded
+         if (payload.profilePhoto instanceof File) payload.profilePhoto = await fileToBase64(payload.profilePhoto) as any;
+         if (payload.governmentId instanceof File) payload.governmentId = await fileToBase64(payload.governmentId) as any;
+         if (payload.businessRegDoc instanceof File) payload.businessRegDoc = await fileToBase64(payload.businessRegDoc) as any;
 
         const response = await fetch(`${API_URL}/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
-        const data = await handleResponse(response);
-        localStorage.setItem('cleanconnect_token', data.token);
-        return data;
-    },
-
-    getMe: async (): Promise<User> => {
-        const response = await fetch(`${API_URL}/users/me`, { method: 'GET', headers: getHeaders() });
         return handleResponse(response);
     },
-
-    updateUser: async (userData: Partial<User>) => {
-        const payload = { ...userData };
-        if (payload.profilePhoto instanceof File) payload.profilePhoto = await fileToBase64(payload.profilePhoto) as any;
-
+    
+    getMe: async (): Promise<User> => {
         const response = await fetch(`${API_URL}/users/me`, {
-            method: 'PUT',
+            method: 'GET',
             headers: getHeaders(),
-            body: JSON.stringify(payload),
         });
         return handleResponse(response);
     },
 
-    // ---------------------------
-    // CLEANERS
-    // ---------------------------
     getAllCleaners: async (): Promise<Cleaner[]> => {
-        const response = await fetch(`${API_URL}/cleaners`, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+        const response = await fetch(`${API_URL}/cleaners`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+        });
         return handleResponse(response);
     },
 
     getCleanerById: async (id: string) => {
-        const response = await fetch(`${API_URL}/cleaners/${id}`, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+        const response = await fetch(`${API_URL}/cleaners/${id}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+        });
         return handleResponse(response);
     },
 
@@ -156,39 +147,77 @@ export const apiService = {
                 body: JSON.stringify({ query }),
             });
             return handleResponse(response);
-        } catch {
-            return { matchingIds: [] };
+        } catch (error) {
+            return { matchingIds: [] }; 
         }
     },
-
-    // ---------------------------
-    // BOOKINGS
-    // ---------------------------
+    
     createBooking: async (bookingData: any): Promise<Booking> => {
-        const response = await fetch(`${API_URL}/bookings`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(bookingData) });
+        const response = await fetch(`${API_URL}/bookings`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(bookingData),
+        });
         return handleResponse(response);
     },
 
     cancelBooking: async (bookingId: string): Promise<Booking> => {
-        const response = await fetch(`${API_URL}/bookings/${bookingId}/cancel`, { method: 'POST', headers: getHeaders() });
+        const response = await fetch(`${API_URL}/bookings/${bookingId}/cancel`, {
+            method: 'POST',
+            headers: getHeaders(),
+        });
         return handleResponse(response);
     },
 
     markJobComplete: async (bookingId: string): Promise<Booking> => {
-        const response = await fetch(`${API_URL}/bookings/${bookingId}/complete`, { method: 'POST', headers: getHeaders() });
+        const response = await fetch(`${API_URL}/bookings/${bookingId}/complete`, {
+            method: 'POST',
+            headers: getHeaders(),
+        });
         return handleResponse(response);
     },
 
     submitReview: async (bookingId: string, reviewData: any) => {
-        const response = await fetch(`${API_URL}/bookings/${bookingId}/review`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(reviewData) });
+        const response = await fetch(`${API_URL}/bookings/${bookingId}/review`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(reviewData),
+        });
+        return handleResponse(response);
+    },
+    
+    updateUser: async (userData: Partial<User>) => {
+        const payload = { ...userData };
+        if (payload.profilePhoto instanceof File) {
+            payload.profilePhoto = await fileToBase64(payload.profilePhoto) as any;
+        }
+        const response = await fetch(`${API_URL}/users/me`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify(payload),
+        });
         return handleResponse(response);
     },
 
+    submitContactForm: async (formData: any) => {
+        const response = await fetch(`${API_URL}/contact`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData),
+        });
+        return handleResponse(response);
+    },
+    
     uploadReceipt: async (entityId: string, receiptData: any, type: 'booking' | 'subscription') => {
-        const endpoint = type === 'booking'
+        const endpoint = type === 'booking' 
             ? `${API_URL}/bookings/${entityId}/receipt`
             : `${API_URL}/users/subscription/receipt`;
-        const response = await fetch(endpoint, { method: 'POST', headers: getHeaders(), body: JSON.stringify(receiptData) });
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(receiptData),
+        });
         return handleResponse(response);
     },
 
@@ -201,95 +230,136 @@ export const apiService = {
         return handleResponse(response);
     },
 
-    // ---------------------------
-    // ADMIN
-    // ---------------------------
     adminGetAllUsers: async (): Promise<User[]> => {
-        const response = await fetch(`${API_URL}/admin/users`, { method: 'GET', headers: getHeaders() });
+        const response = await fetch(`${API_URL}/admin/users`, {
+            method: 'GET',
+            headers: getHeaders(),
+        });
         return handleResponse(response);
     },
-
+    
     adminUpdateUserStatus: async (userId: string, isSuspended: boolean) => {
-        const response = await fetch(`${API_URL}/admin/users/${userId}/status`, { method: 'PATCH', headers: getHeaders(), body: JSON.stringify({ isSuspended }) });
+        const response = await fetch(`${API_URL}/admin/users/${userId}/status`, {
+            method: 'PATCH',
+            headers: getHeaders(),
+            body: JSON.stringify({ isSuspended }),
+        });
         return handleResponse(response);
     },
 
     adminDeleteUser: async (userId: string) => {
-        const response = await fetch(`${API_URL}/admin/users/${userId}`, { method: 'DELETE', headers: getHeaders() });
+        const response = await fetch(`${API_URL}/admin/users/${userId}`, {
+            method: 'DELETE',
+            headers: getHeaders(),
+        });
         return handleResponse(response);
     },
 
     adminConfirmPayment: async (bookingId: string) => {
-        const response = await fetch(`${API_URL}/admin/bookings/${bookingId}/confirm-payment`, { method: 'POST', headers: getHeaders() });
+        const response = await fetch(`${API_URL}/admin/bookings/${bookingId}/confirm-payment`, {
+            method: 'POST',
+            headers: getHeaders(),
+        });
         return handleResponse(response);
     },
 
     adminApproveSubscription: async (userId: string) => {
-        const response = await fetch(`${API_URL}/admin/users/${userId}/approve-subscription`, { method: 'POST', headers: getHeaders() });
+        const response = await fetch(`${API_URL}/admin/users/${userId}/approve-subscription`, {
+            method: 'POST',
+            headers: getHeaders(),
+        });
         return handleResponse(response);
     },
 
     adminMarkAsPaid: async (bookingId: string) => {
-        const response = await fetch(`${API_URL}/admin/bookings/${bookingId}/mark-paid`, { method: 'POST', headers: getHeaders() });
+        const response = await fetch(`${API_URL}/admin/bookings/${bookingId}/mark-paid`, {
+            method: 'POST',
+            headers: getHeaders(),
+        });
         return handleResponse(response);
     },
 
     adminCreateAdminUser: async (adminData: { email: string; fullName: string; role: AdminRole; password: string }) => {
-        const response = await fetch(`${API_URL}/admin/create-admin`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(adminData) });
+        const response = await fetch(`${API_URL}/admin/create-admin`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(adminData),
+        });
         return handleResponse(response);
     },
 
-    // ---------------------------
-    // SUPPORT TICKETS
-    // ---------------------------
+    // ==========================================
+    // SUPPORT TICKET API
+    // ==========================================
     createSupportTicket: async (ticketData: Partial<SupportTicket>): Promise<SupportTicket> => {
-        const response = await fetch(`${API_URL}/support`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(ticketData) });
+        const response = await fetch(`${API_URL}/support`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(ticketData),
+        });
         return handleResponse(response);
     },
 
     getUserTickets: async (): Promise<SupportTicket[]> => {
-        const response = await fetch(`${API_URL}/support/my`, { method: 'GET', headers: getHeaders() });
+        const response = await fetch(`${API_URL}/support/my`, {
+            method: 'GET',
+            headers: getHeaders(),
+        });
         return handleResponse(response);
     },
 
     getAllSupportTickets: async (): Promise<SupportTicket[]> => {
-        const response = await fetch(`${API_URL}/admin/support`, { method: 'GET', headers: getHeaders() });
+        const response = await fetch(`${API_URL}/admin/support`, {
+            method: 'GET',
+            headers: getHeaders(),
+        });
         return handleResponse(response);
     },
 
     resolveSupportTicket: async (ticketId: string, adminResponse: string): Promise<SupportTicket> => {
-        const response = await fetch(`${API_URL}/admin/support/${ticketId}/resolve`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ adminResponse }) });
+        const response = await fetch(`${API_URL}/admin/support/${ticketId}/resolve`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ adminResponse }),
+        });
         return handleResponse(response);
     },
 
-    // ---------------------------
-    // CHAT
-    // ---------------------------
-    createChat: async (currentUserId: string, otherUserId: string): Promise<Chat> => {
-        const response = await fetch(`${API_URL}/chats`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ participantId: otherUserId }) });
+    // ==========================================
+    // CHAT API
+    // ==========================================
+    
+    createChat: async (currentUserId: string, otherUserId: string, currentUserName: string, otherUserName: string): Promise<Chat> => {
+        const response = await fetch(`${API_URL}/chats`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ participantId: otherUserId }),
+        });
         return handleResponse(response);
     },
 
     getChats: async (userId: string): Promise<Chat[]> => {
-        const response = await fetch(`${API_URL}/chats`, { method: 'GET', headers: getHeaders() });
+         const response = await fetch(`${API_URL}/chats`, {
+            method: 'GET',
+            headers: getHeaders(),
+        });
         return handleResponse(response);
     },
 
     getChatMessages: async (chatId: string): Promise<Message[]> => {
-        const response = await fetch(`${API_URL}/chats/${chatId}/messages`, { method: 'GET', headers: getHeaders() });
+        const response = await fetch(`${API_URL}/chats/${chatId}/messages`, {
+            method: 'GET',
+            headers: getHeaders(),
+        });
         return handleResponse(response);
     },
 
-    sendMessage: async (chatId: string, text: string): Promise<Message> => {
-        const response = await fetch(`${API_URL}/chats/${chatId}/messages`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ text }) });
+    sendMessage: async (chatId: string, senderId: string, text: string): Promise<Message> => {
+        const response = await fetch(`${API_URL}/chats/${chatId}/messages`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ text }),
+        });
         return handleResponse(response);
-    },
-
-    // ---------------------------
-    // CONTACT
-    // ---------------------------
-    submitContactForm: async (formData: any) => {
-        const response = await fetch(`${API_URL}/contact`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
-        return handleResponse(response);
-    },
+    }
 };
